@@ -18,7 +18,7 @@ matchRouter.get("/", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: "Invalid query parameters",
-      details: parsed.error,
+      details: parsed.error.issues,
     });
   }
 
@@ -46,13 +46,19 @@ matchRouter.post("/", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: "Invalid request body",
-      details: parsed.error.format(),
+      details: parsed.error.issues,
     });
   }
 
-  const {
-    data: { startTime, endTime, homeScore, awayScore },
-  } = parsed;
+  if (!req.app.locals.broadcastMatchCreated) {
+    return res.status(500).json({
+      error: "WebSocket broadcast function not available",
+    });
+  }
+
+  const broadcastMatchCreated = req.app.locals.broadcastMatchCreated;
+
+  const { startTime, endTime, homeScore, awayScore } = parsed.data;
 
   try {
     const [event] = await db
@@ -67,11 +73,12 @@ matchRouter.post("/", async (req, res) => {
       })
       .returning();
 
+    broadcastMatchCreated(event);
+
     return res.status(201).json({ data: event });
   } catch (error) {
     return res.status(500).json({
       error: "Failed to create match",
-      details: JSON.stringify(error),
     });
   }
 });

@@ -1,14 +1,13 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // MATCH_STATUS keys in UPPERCASE, values in lowercase
 export const MATCH_STATUS = {
-  SCHEDULED: 'scheduled',
-  LIVE: 'live',
-  FINISHED: 'finished',
+  SCHEDULED: "scheduled",
+  LIVE: "live",
+  FINISHED: "finished",
 } as const;
 
-const isoDateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
-const isIsoDateString = (s: unknown): s is string => typeof s === 'string' && isoDateTimeRegex.test(s);
+const isIsoDateString = z.iso.datetime();
 
 export const listMatchesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional(),
@@ -27,8 +26,8 @@ export const createMatchSchema = z
     sport: z.string().nonempty(),
     homeTeam: z.string().nonempty(),
     awayTeam: z.string().nonempty(),
-    startTime: z.string().refine(isIsoDateString, { message: 'startTime must be a valid ISO 8601 string' }),
-    endTime: z.string().refine(isIsoDateString, { message: 'endTime must be a valid ISO 8601 string' }),
+    startTime: isIsoDateString,
+    endTime: isIsoDateString,
     homeScore: z.coerce.number().int().nonnegative().optional(),
     awayScore: z.coerce.number().int().nonnegative().optional(),
   })
@@ -40,8 +39,8 @@ export const createMatchSchema = z
     if (end <= start) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'endTime must be chronologically after startTime',
-        path: ['endTime'],
+        message: "endTime must be chronologically after startTime",
+        path: ["endTime"],
       });
     }
   });

@@ -1,13 +1,43 @@
 import { Router } from "express";
-import { createMatchSchema } from "../validation/matches";
+import {
+  createMatchSchema,
+  listMatchesQuerySchema,
+} from "../validation/matches";
 import { db } from "../db/db";
 import { matches } from "../db/schema";
 import { getMatchStatus } from "../utils/match-status";
+import { desc } from "drizzle-orm";
 
 export const matchRouter = Router();
 
-matchRouter.get("/", (req, res) => {
-  res.status(200).send({ message: "Matches route is working!" });
+const MAX_LIMIT = 100;
+
+matchRouter.get("/", async (req, res) => {
+  const parsed = listMatchesQuerySchema.safeParse(req.query);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Invalid query parameters",
+      details: parsed.error,
+    });
+  }
+
+  const limit = Math.min(parsed.data.limit ?? 50, MAX_LIMIT);
+
+  try {
+    const data = await db
+      .select()
+      .from(matches)
+      .orderBy(desc(matches.createdAt))
+      .limit(limit);
+
+    return res.status(200).json({ data });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Failed to fetch matches",
+      details: JSON.stringify(error),
+    });
+  }
 });
 
 matchRouter.post("/", async (req, res) => {
@@ -25,14 +55,17 @@ matchRouter.post("/", async (req, res) => {
   } = parsed;
 
   try {
-    const [event] = await db.insert(matches).values({
-      ...parsed.data,
-      startTime: new Date(startTime),
-      endTime: new Date(endTime),
-      homeScore: homeScore ?? 0,
-      awayScore: awayScore ?? 0,
-      status: getMatchStatus(startTime, endTime) ?? "scheduled",
-    }).returning();
+    const [event] = await db
+      .insert(matches)
+      .values({
+        ...parsed.data,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        homeScore: homeScore ?? 0,
+        awayScore: awayScore ?? 0,
+        status: getMatchStatus(startTime, endTime) ?? "scheduled",
+      })
+      .returning();
 
     return res.status(201).json({ data: event });
   } catch (error) {
